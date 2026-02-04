@@ -1,0 +1,11 @@
+data/brats/
+checkpoints/
+*.nii.gz
+*.ckpt
+__pycache__/
+lib/
+bin/
+include/
+share/
+*.pyc
+.DS_Store
