@@ -65,7 +65,7 @@ if __name__ == "__main__":
     print("Training Model 2: L1 + FFL (your method)")
     print("=" * 50)
     model_ffl = SimpleConvNet(in_channels=2, out_channels=1)
-    criterion_ffl = CombinedLoss(l1_weight=1.0, ffl_weight=0.01)  # WITH FFL!
+    criterion_ffl = CombinedLoss(l1_weight=1.0, ffl_weight=0.01, ffl_alpha=0.0)  # WITH FFL!
     optimizer_ffl = torch.optim.Adam(model_ffl.parameters(), lr=LR)
     history_ffl = train_model(model_ffl, dataloader, criterion_ffl, optimizer_ffl, EPOCHS, "L1 + FFL")
     torch.save(model_ffl.state_dict(), "../outputs/model_l1_ffl.pth")

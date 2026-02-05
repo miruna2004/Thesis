@@ -3,38 +3,31 @@ import torch.nn as nn
 import torch.fft
 
 class FrequencyMSELoss(nn.Module):
-    """forces the network ro recover high frequcny components like edges  textiure, MSE IS BLURRY"""
-    def __init__(self, alpha = 1.0, patch_factor=1, ave_spectrum=False):
-        super(FrequencyMSELoss, self).__init__()
+    """Focal Frequency Loss - focuses on hard-to-reconstruct frequencies."""
+    def __init__(self, alpha=1.0):
+        super().__init__()
         self.alpha = alpha
-        self.patch_factor = patch_factor
-        self.ave_spectrum = ave_spectrum
-
+    
     def forward(self, pred, target):
-        """
-        predicted volume is (B C D H W )
-        and target is the ground truth volume ( B C D H W   )
-
-
-        """
-
+        # Compute FFT
         pred_freq = torch.fft.fftn(pred, dim=(-3, -2, -1))
         target_freq = torch.fft.fftn(target, dim=(-3, -2, -1))
-
-        pred_freq = torch.fft.fftshift(pred_freq, dim=(-3, -2, -1))
-        target_freq = torch.fft.fftshift(target_freq, dim=(-3, -2, -1))
-
-        #magnitude spectrum 
+        
+        # Magnitude spectrum
         pred_mag = torch.abs(pred_freq)
         target_mag = torch.abs(target_freq)
-
-        #freq distance (error in frequency domain)
-        freq_distance = (pred_mag - target_mag) ** 2
-
-        weight = freq_distance ** self.alpha
-
-        loss = torch.mean(weight * freq_distance)
-
+        
+        # Frequency error (normalized to prevent explosion)
+        freq_error = torch.abs(pred_mag - target_mag)
+        freq_error = freq_error / (target_mag.max() + 1e-8)  # normalize
+        
+        # FOCAL weighting: penalize hard frequencies more
+        # But clamp to prevent NaN
+        weight = torch.clamp(freq_error, 0, 1) ** self.alpha + 1e-8
+        
+        # Weighted loss
+        loss = torch.mean(weight * (freq_error ** 2))
+        
         return loss
     
 class CombinedLoss(nn.Module):
