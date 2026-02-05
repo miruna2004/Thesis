@@ -3,30 +3,36 @@ import torch.nn as nn
 import torch.fft
 
 class FrequencyMSELoss(nn.Module):
-    """Focal Frequency Loss - focuses on hard-to-reconstruct frequencies."""
-    def __init__(self, alpha=1.0):
+    """Stable Focal Frequency Loss."""
+    def __init__(self, alpha=0.5):
         super().__init__()
         self.alpha = alpha
     
     def forward(self, pred, target):
-        # Compute FFT
+        # FFT
         pred_freq = torch.fft.fftn(pred, dim=(-3, -2, -1))
         target_freq = torch.fft.fftn(target, dim=(-3, -2, -1))
         
-        # Magnitude spectrum
+        # Magnitude
         pred_mag = torch.abs(pred_freq)
         target_mag = torch.abs(target_freq)
         
-        # Frequency error (normalized to prevent explosion)
-        freq_error = torch.abs(pred_mag - target_mag)
-        freq_error = freq_error / (target_mag.max() + 1e-8)  # normalize
+        # Normalize BOTH to same scale (key stability fix!)
+        pred_mag = pred_mag / (pred_mag.max() + 1e-8)
+        target_mag = target_mag / (target_mag.max() + 1e-8)
         
-        # FOCAL weighting: penalize hard frequencies more
-        # But clamp to prevent NaN
-        weight = torch.clamp(freq_error, 0, 1) ** self.alpha + 1e-8
+        # Frequency error
+        freq_error = (pred_mag - target_mag) ** 2
         
-        # Weighted loss
-        loss = torch.mean(weight * (freq_error ** 2))
+        # Focal weighting (with extra stability)
+        if self.alpha > 0:
+            weight = torch.clamp(freq_error, 1e-8, 1.0) ** self.alpha
+            loss = torch.mean(weight * freq_error)
+        else:
+            loss = torch.mean(freq_error)
+        
+        # Clamp final loss to prevent explosion
+        loss = torch.clamp(loss, 0, 10.0)
         
         return loss
     
